@@ -9,10 +9,11 @@
  ******************************************************************************/
 
 #include <oled.h>
-#define WIDTH 128
-#define HEIGHT 64
-#define OLED_BLACK 0
-#define OLED_WHITE 1
+
+//=====================================================
+// Funciones privadas
+//=====================================================
+
 #define SWAP(a, b)            \
   do                          \
   {                           \
@@ -20,11 +21,107 @@
     (a) = (b);                \
     (b) = temp;               \
   } while (0)
-uint8_t oled_buffer[WIDTH * HEIGHT / 8];
 
-//=====================================================
-// Funciones privadas
-//=====================================================
+static uint8_t WIDTH;
+static uint8_t HEIGHT;
+static uint8_t oled_buffer[OLED_MAX_WIDTH * OLED_MAX_HEIGHT / 8];
+static uint16_t oled_initial;
+
+static void oled_draw_circle_quadrant(
+    int16_t x0,
+    int16_t y0,
+    uint8_t radius,
+    uint8_t quadrant,
+    uint8_t color)
+{
+  int16_t x = radius;
+  int16_t y = 0;
+  int16_t err = 1 - radius;
+
+  while (x >= y)
+  {
+    // Superior izquierdo
+    if (quadrant & OLED_QUADRANT_TOP_LEFT)
+    {
+      oled_draw_pixel(x0 - y, y0 - x, color);
+      oled_draw_pixel(x0 - x, y0 - y, color);
+    }
+
+    // Superior derecho
+    if (quadrant & OLED_QUADRANT_TOP_RIGHT)
+    {
+      oled_draw_pixel(x0 + y, y0 - x, color);
+      oled_draw_pixel(x0 + x, y0 - y, color);
+    }
+
+    // Inferior izquierdo
+    if (quadrant & OLED_QUADRANT_BOTTOM_LEFT)
+    {
+      oled_draw_pixel(x0 - x, y0 + y, color);
+      oled_draw_pixel(x0 - y, y0 + x, color);
+    }
+
+    // Inferior derecho
+    if (quadrant & OLED_QUADRANT_BOTTOM_RIGHT)
+    {
+      oled_draw_pixel(x0 + x, y0 + y, color);
+      oled_draw_pixel(x0 + y, y0 + x, color);
+    }
+
+    y++;
+
+    if (err <= 0)
+    {
+      err += 2 * y + 1;
+    }
+    else
+    {
+      x--;
+      err += 2 * (y - x) + 1;
+    }
+  }
+}
+
+static void oled_fill_circle_quadrant(
+    int16_t x0,
+    int16_t y0,
+    uint8_t radius,
+    uint8_t quadrant,
+    uint8_t color)
+{
+  for (int16_t y = -radius; y <= radius; y++)
+  {
+    for (int16_t x = -radius; x <= radius; x++)
+    {
+      if ((x * x + y * y) <= (radius * radius))
+      {
+        if ((quadrant & OLED_QUADRANT_TOP_LEFT) &&
+            x <= 0 && y <= 0)
+        {
+          oled_draw_pixel(x0 + x, y0 + y, color);
+        }
+
+        if ((quadrant & OLED_QUADRANT_TOP_RIGHT) &&
+            x >= 0 && y <= 0)
+        {
+          oled_draw_pixel(x0 + x, y0 + y, color);
+        }
+
+        if ((quadrant & OLED_QUADRANT_BOTTOM_LEFT) &&
+            x <= 0 && y >= 0)
+        {
+          oled_draw_pixel(x0 + x, y0 + y, color);
+        }
+
+        if ((quadrant & OLED_QUADRANT_BOTTOM_RIGHT) &&
+            x >= 0 && y >= 0)
+        {
+          oled_draw_pixel(x0 + x, y0 + y, color);
+        }
+      }
+    }
+  }
+}
 
 static void oled_send_data(const uint8_t *data, size_t length)
 {
@@ -69,38 +166,63 @@ static void oled_send_command(uint8_t cmd)
 // Inicialización y Gestión del framebuffer
 //=====================================================
 
-void oled_init()
+void oled_init(oled_config config, uint8_t width, uint8_t height)
 {
+  WIDTH = width;
+  HEIGHT = height;
+  oled_initial = config;
   i2c_start();
-  i2c_write(SSD1306_ADDR << 1); // Dirección con bit de escritura
-  i2c_write(SSD1306_COMMAND);   // Enviar comando
-  i2c_write(0xAE);              // Apagar el display
-  i2c_write(0xD5);              // Configurar la frecuencia del reloj
-  i2c_write(0x80);              // Valor de configuración
-  i2c_write(0xA8);              // Configurar el multiplex
-  i2c_write(HEIGHT - 1);        // Valor de multiplex
-  i2c_write(0xD3);              // Desplazamiento vertical
-  i2c_write(0x00);              // Sin desplazamiento
-  i2c_write(0x40);              // Configurar el inicio de la línea
-  i2c_write(0x8D);              // Habilitar la carga de pre-carga
-  i2c_write(0x14);              // Habilitar
-  i2c_write(0x20);              // Establecer modo de dirección
-  i2c_write(0x00);              // Horizontal
-  i2c_write(0xA1);              // Configurar el segmento
-  i2c_write(0xC8);              // Configurar la salida
-  i2c_write(0xDA);              // Configurar la resistencia de tiras
-  i2c_write(0x12);              // Configurar
-  i2c_write(0x81);              // Configurar el contraste
-  i2c_write(0x7F);              // Valor de contraste
-  i2c_write(0xA4);              // Habilitar el modo de salida
-  i2c_write(0xAF);              // Encender el display
+  i2c_write(SSD1306_ADDR << 1);
+  i2c_write(SSD1306_COMMAND);
+
+  i2c_write(0xAE);
+  i2c_write(0xD5);
+  i2c_write(0x80);
+  i2c_write(0xA8);
+  i2c_write(HEIGHT - 1);
+  i2c_write(0xD3);
+  i2c_write(0x00);
+  i2c_write(0x40);
+
+  if (config == SSD1306)
+  {
+    i2c_write(0x8D);
+    i2c_write(0x14);
+
+    i2c_write(0x20);
+    i2c_write(0x00);
+  }
+
+  i2c_write(0xA1);
+  i2c_write(0xC8);
+  i2c_write(0xDA);
+  i2c_write(0x12);
+  i2c_write(0x81);
+  i2c_write(0x7F);
+  i2c_write(0xA4);
+  i2c_write(0xAF);
+
   i2c_stop();
 };
 
-void oled_update(void)
+void oled_update()
 {
-  oled_set_page_address(0, 0);
-  oled_send_data(oled_buffer, sizeof(oled_buffer));
+  if (oled_initial == SSD1306)
+  {
+    oled_set_page_address(0, 0);
+    oled_send_data(oled_buffer, WIDTH * HEIGHT / 8);
+  }
+  else
+  {
+    for (uint8_t page = 0; page < HEIGHT / 8; page++)
+    {
+      oled_send_command(0xB0 | page);
+      oled_send_command(0x02);
+      oled_send_command(0x10);
+
+      oled_send_data(&oled_buffer[page * WIDTH], WIDTH);
+    }
+  }
 }
 
 void oled_clear(void)
@@ -126,64 +248,70 @@ void oled_fill(uint8_t color)
 
 void oled_scroll_pages(uint8_t pages, scroll_direction direction)
 {
-  if(direction == scroll_direction::Down){
-     if (pages == 0 || pages >= HEIGHT / 8)
-        return;
+  if (direction == scroll_direction::Down)
+  {
+    if (pages == 0 || pages >= HEIGHT / 8)
+      return;
 
     uint8_t total_pages = HEIGHT / 8;
 
     // Mover páginas hacia abajo
     for (int8_t page = total_pages - 1; page >= pages; page--)
     {
-        for (uint8_t x = 0; x < WIDTH; x++)
-        {
-            oled_buffer[page * WIDTH + x] =
-                oled_buffer[(page - pages) * WIDTH + x];
-        }
+      for (uint8_t x = 0; x < WIDTH; x++)
+      {
+        oled_buffer[page * WIDTH + x] =
+            oled_buffer[(page - pages) * WIDTH + x];
+      }
     }
 
     // Limpiar las páginas nuevas del inicio
     for (uint8_t page = 0; page < pages; page++)
     {
-        for (uint8_t x = 0; x < WIDTH; x++)
-        {
-            oled_buffer[page * WIDTH + x] = 0x00;
-        }
+      for (uint8_t x = 0; x < WIDTH; x++)
+      {
+        oled_buffer[page * WIDTH + x] = 0x00;
+      }
     }
-  }else if (direction == scroll_direction::Up)
+  }
+  else if (direction == scroll_direction::Up)
   {
     if (pages == 0 || pages >= HEIGHT / 8)
-        return;
+      return;
 
     uint8_t total_pages = HEIGHT / 8;
 
     // Mover páginas hacia arriba
     for (uint8_t page = 0; page < total_pages - pages; page++)
     {
-        for (uint8_t x = 0; x < WIDTH; x++)
-        {
-            oled_buffer[page * WIDTH + x] =
-                oled_buffer[(page + pages) * WIDTH + x];
-        }
+      for (uint8_t x = 0; x < WIDTH; x++)
+      {
+        oled_buffer[page * WIDTH + x] =
+            oled_buffer[(page + pages) * WIDTH + x];
+      }
     }
 
     // Limpiar las páginas nuevas del final
     for (uint8_t page = total_pages - pages; page < total_pages; page++)
     {
-        for (uint8_t x = 0; x < WIDTH; x++)
-        {
-            oled_buffer[page *  WIDTH + x] = 0x00;
-        }
+      for (uint8_t x = 0; x < WIDTH; x++)
+      {
+        oled_buffer[page * WIDTH + x] = 0x00;
+      }
     }
-  }else return;
-    
+  }
+  else
+    return;
 }
 
 //=====================================================
 // Primitivas de dibujo
 //=====================================================
 
-void oled_draw_pixel(uint8_t x, uint8_t y, uint8_t color)
+void oled_draw_pixel(
+    uint8_t x,
+    uint8_t y,
+    uint8_t color)
 {
   // Verificar límites
   if (x >= WIDTH || y >= HEIGHT)
@@ -207,7 +335,12 @@ void oled_draw_pixel(uint8_t x, uint8_t y, uint8_t color)
   }
 }
 
-void oled_draw_line(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t color)
+void oled_draw_line(
+    uint8_t x0,
+    uint8_t y0,
+    uint8_t x1,
+    uint8_t y1,
+    uint8_t color)
 {
   int dx = abs(x1 - x0);
   int dy = -abs(y1 - y0);
@@ -234,7 +367,85 @@ void oled_draw_line(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t colo
   }
 }
 
-void oled_draw_rectangle(uint8_t x0, uint8_t y0, uint8_t width, uint8_t height, uint8_t color)
+void oled_draw_round_rect(
+    uint8_t x,
+    uint8_t y,
+    uint8_t width,
+    uint8_t height,
+    uint8_t radius,
+    uint8_t color)
+{
+  if (radius > width / 2)
+    radius = width / 2;
+
+  if (radius > height / 2)
+    radius = height / 2;
+
+  // líneas centrales
+  oled_draw_line(
+      x + radius,
+      y,
+      x + width - radius - 1,
+      y,
+      color);
+
+  oled_draw_line(
+      x + radius,
+      y + height - 1,
+      x + width - radius - 1,
+      y + height - 1,
+      color);
+
+  oled_draw_line(
+      x,
+      y + radius,
+      x,
+      y + height - radius - 1,
+      color);
+
+  oled_draw_line(
+      x + width - 1,
+      y + radius,
+      x + width - 1,
+      y + height - radius - 1,
+      color);
+
+  // esquinas
+  oled_draw_circle_quadrant(
+      x + radius,
+      y + radius,
+      radius,
+      OLED_QUADRANT_TOP_LEFT,
+      color);
+
+  oled_draw_circle_quadrant(
+      x + width - radius - 1,
+      y + radius,
+      radius,
+      OLED_QUADRANT_TOP_RIGHT,
+      color);
+
+  oled_draw_circle_quadrant(
+      x + radius,
+      y + height - radius - 1,
+      radius,
+      OLED_QUADRANT_BOTTOM_LEFT,
+      color);
+
+  oled_draw_circle_quadrant(
+      x + width - radius - 1,
+      y + height - radius - 1,
+      radius,
+      OLED_QUADRANT_BOTTOM_RIGHT,
+      color);
+}
+
+void oled_draw_rectangle(
+    uint8_t x0,
+    uint8_t y0,
+    uint8_t width,
+    uint8_t height,
+    uint8_t color)
 {
   oled_draw_line(x0, y0, x0 + width - 1, y0, color);                           // Línea superior
   oled_draw_line(x0, y0 + height - 1, x0 + width - 1, y0 + height - 1, color); // Línea inferior
@@ -242,7 +453,72 @@ void oled_draw_rectangle(uint8_t x0, uint8_t y0, uint8_t width, uint8_t height, 
   oled_draw_line(x0 + width - 1, y0, x0 + width - 1, y0 + height - 1, color);  // Línea derecha
 }
 
-void oled_draw_rectangle_filled(uint8_t x0, uint8_t y0, uint8_t width, uint8_t height, uint8_t color)
+void oled_draw_round_rect_filled(
+    uint8_t x,
+    uint8_t y,
+    uint8_t width,
+    uint8_t height,
+    uint8_t radius,
+    uint8_t color)
+{
+  if (radius > width / 2)
+    radius = width / 2;
+
+  if (radius > height / 2)
+    radius = height / 2;
+
+  // Centro vertical completo
+  oled_draw_rectangle_filled(
+      x + radius,
+      y,
+      width - 2 * radius,
+      height,
+      color);
+
+  // Centro horizontal completo
+  oled_draw_rectangle_filled(
+      x,
+      y + radius,
+      width,
+      height - 2 * radius,
+      color);
+
+  // Esquinas rellenas
+  oled_fill_circle_quadrant(
+      x + radius,
+      y + radius,
+      radius,
+      OLED_QUADRANT_TOP_LEFT,
+      color);
+
+  oled_fill_circle_quadrant(
+      x + width - radius - 1,
+      y + radius,
+      radius,
+      OLED_QUADRANT_TOP_RIGHT,
+      color);
+
+  oled_fill_circle_quadrant(
+      x + radius,
+      y + height - radius - 1,
+      radius,
+      OLED_QUADRANT_BOTTOM_LEFT,
+      color);
+
+  oled_fill_circle_quadrant(
+      x + width - radius - 1,
+      y + height - radius - 1,
+      radius,
+      OLED_QUADRANT_BOTTOM_RIGHT,
+      color);
+}
+
+void oled_draw_rectangle_filled(
+    uint8_t x0,
+    uint8_t y0,
+    uint8_t width,
+    uint8_t height,
+    uint8_t color)
 {
   for (int y = y0; y < y0 + height; y++)
   {
@@ -250,7 +526,11 @@ void oled_draw_rectangle_filled(uint8_t x0, uint8_t y0, uint8_t width, uint8_t h
   }
 }
 
-void oled_draw_circle(uint8_t x0, uint8_t y0, uint8_t radius, uint8_t color)
+void oled_draw_circle(
+    uint8_t x0,
+    uint8_t y0,
+    uint8_t radius,
+    uint8_t color)
 {
   int x = 0;
   int y = radius;
@@ -282,7 +562,12 @@ void oled_draw_circle(uint8_t x0, uint8_t y0, uint8_t radius, uint8_t color)
   }
 }
 
-void oled_draw_circle_filled(uint8_t x0, uint8_t y0, uint8_t radius, uint8_t color)
+void oled_draw_circle_filled(
+    uint8_t
+        x0,
+    uint8_t y0,
+    uint8_t radius,
+    uint8_t color)
 {
   int x = 0;
   int y = radius;
@@ -310,14 +595,28 @@ void oled_draw_circle_filled(uint8_t x0, uint8_t y0, uint8_t radius, uint8_t col
   }
 }
 
-void oled_draw_triangle(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, uint8_t color)
+void oled_draw_triangle(
+    uint8_t x0,
+    uint8_t y0,
+    uint8_t x1,
+    uint8_t y1,
+    uint8_t x2,
+    uint8_t y2,
+    uint8_t color)
 {
   oled_draw_line(x0, y0, x1, y1, color);
   oled_draw_line(x1, y1, x2, y2, color);
   oled_draw_line(x2, y2, x0, y0, color);
 }
 
-void oled_draw_triangle_filled(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, uint8_t color)
+void oled_draw_triangle_filled(
+    uint8_t x0,
+    uint8_t y0,
+    uint8_t x1,
+    uint8_t y1,
+    uint8_t x2,
+    uint8_t y2,
+    uint8_t color)
 {
   // Ordenar vértices por Y (y0 <= y1 <= y2)
   if (y0 > y1)
@@ -411,148 +710,245 @@ void oled_draw_triangle_filled(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, u
 // Texto
 //=====================================================================
 
-void oled_draw_char(uint8_t x, uint8_t y, char c, uint8_t color, text_size scale)
+void oled_draw_char(
+    uint8_t x,
+    uint8_t y,
+    char c,
+    uint8_t color,
+    text_size scale)
 {
-    if (c < 32 || c > 127)
-        return;
+  if (c < 32 || c > 127)
+    return;
 
-    for (uint8_t i = 0; i < 6; i++)
+  for (uint8_t i = 0; i < 6; i++)
+  {
+    uint8_t line = pgm_read_byte(&font[c - 32][i]);
+
+    for (uint8_t j = 0; j < 8; j++)
     {
-        uint8_t line = pgm_read_byte(&font[c - 32][i]);
-
-        for (uint8_t j = 0; j < 8; j++)
+      if ((line >> j) & 1)
+      {
+        for (uint8_t dx = 0; dx < scale; dx++)
         {
-            if ((line >> j) & 1)
-            {
-                for (uint8_t dx = 0; dx < scale; dx++)
-                {
-                    for (uint8_t dy = 0; dy < scale; dy++)
-                    {
-                        oled_draw_pixel(
-                            x + (i * scale) + dx,
-                            y + (j * scale) + dy,
-                            color
-                        );
-                    }
-                }
-            }
+          for (uint8_t dy = 0; dy < scale; dy++)
+          {
+            oled_draw_pixel(
+                x + (i * scale) + dx,
+                y + (j * scale) + dy,
+                color);
+          }
         }
+      }
     }
+  }
 }
 
-void oled_draw_string(uint8_t x, uint8_t y, const char *str, uint8_t color, text_size scale)
+void oled_draw_string(
+    uint8_t x,
+    uint8_t y,
+    const char *str,
+    uint8_t color,
+    text_size scale)
 {
-    while (*str != '\0')
+  while (*str != '\0')
+  {
+    oled_draw_char(x, y, *str, color, scale);
+
+    x += 6 * scale;
+
+    if (x >= WIDTH)
     {
-        oled_draw_char(x, y, *str, color, scale);
+      x = 0;
+      y += 8 * scale;
 
-        x += 6 * scale;
-
-        if (x >= WIDTH)
-        {
-            x = 0;
-            y += 8 * scale;
-
-            if (y >= HEIGHT)
-            {
-                y = 0;
-            }
-        }
-
-        str++;
+      if (y >= HEIGHT)
+      {
+        y = 0;
+      }
     }
+
+    str++;
+  }
+}
+
+void oled_draw_string_aligned(
+    int8_t padding_x,
+    int8_t padding_y,
+    const char *str,
+    uint8_t color,
+    text_size scale,
+    oled_align_t align)
+{
+  uint8_t text_width = strlen(str) * 6 * scale;
+  uint8_t text_height = 8 * scale;
+
+  int16_t x;
+  int16_t y;
+
+  switch (align)
+  {
+  case OLED_ALIGN_TOP_LEFT:
+    x = padding_x;
+    y = padding_y;
+    break;
+
+  case OLED_ALIGN_TOP_CENTER:
+    x = (WIDTH - text_width) / 2 + padding_x;
+    y = padding_y;
+    break;
+
+  case OLED_ALIGN_TOP_RIGHT:
+    x = WIDTH - text_width - padding_x;
+    y = padding_y;
+    break;
+
+  case OLED_ALIGN_CENTER_LEFT:
+    x = padding_x;
+    y = (HEIGHT - text_height) / 2 + padding_y;
+    break;
+
+  case OLED_ALIGN_CENTER:
+    x = (WIDTH - text_width) / 2 + padding_x;
+    y = (HEIGHT - text_height) / 2 + padding_y;
+    break;
+
+  case OLED_ALIGN_CENTER_RIGHT:
+    x = WIDTH - text_width - padding_x;
+    y = (HEIGHT - text_height) / 2 + padding_y;
+    break;
+
+  case OLED_ALIGN_BOTTOM_LEFT:
+    x = padding_x;
+    y = HEIGHT - text_height - padding_y;
+    break;
+
+  case OLED_ALIGN_BOTTOM_CENTER:
+    x = (WIDTH - text_width) / 2 + padding_x;
+    y = HEIGHT - text_height - padding_y;
+    break;
+
+  case OLED_ALIGN_BOTTOM_RIGHT:
+    x = WIDTH - text_width - padding_x;
+    y = HEIGHT - text_height - padding_y;
+    break;
+  }
+
+  oled_draw_string(x, y, str, color, scale);
 }
 
 //=====================================================================
 // Bitmaps y sprites
 //=====================================================================
 
-void oled_draw_bitmap(uint8_t x, uint8_t y, const uint8_t *bitmap, uint8_t width, uint8_t height, uint8_t color)
+void oled_draw_bitmap(
+    uint8_t x,
+    uint8_t y,
+    const uint8_t *bitmap,
+    uint8_t width,
+    uint8_t height,
+    uint8_t color)
 {
-    uint16_t bytes_per_row = (width + 7) / 8;
+  uint16_t bytes_per_row = (width + 7) / 8;
 
-    for (uint8_t j = 0; j < height; j++)
+  for (uint8_t j = 0; j < height; j++)
+  {
+    for (uint8_t i = 0; i < width; i++)
     {
-        for (uint8_t i = 0; i < width; i++)
-        {
-            uint16_t byte_index = (j * bytes_per_row) + (i / 8);
+      uint16_t byte_index = (j * bytes_per_row) + (i / 8);
 
-            uint8_t bit_mask = 0x80 >> (i % 8); 
+      uint8_t bit_mask = 0x80 >> (i % 8);
 
-            uint8_t current_byte = pgm_read_byte(&bitmap[byte_index]);
+      uint8_t current_byte = pgm_read_byte(&bitmap[byte_index]);
 
-            if (current_byte & bit_mask)
-            {
-                oled_draw_pixel(x + i, y + j, color);
-            }
-        }
+      if (current_byte & bit_mask)
+      {
+        oled_draw_pixel(x + i, y + j, color);
+      }
     }
+  }
 }
 
-void oled_sprite_animation(uint8_t x, uint8_t y,const uint8_t *bitmap,uint8_t bitmap_width,
-uint8_t bitmap_height,uint8_t frame_width,uint8_t frame_height,uint8_t color, uint16_t delay_ms)
+void oled_draw_sprite_frame(
+    uint8_t x,
+    uint8_t y,
+    uint8_t sprite_x,
+    uint8_t sprite_y,
+    const uint8_t *bitmap,
+    uint8_t bitmap_width,
+    uint8_t frame_width,
+    uint8_t frame_height,
+    uint8_t color)
 {
-    // Cantidad de sprites por fila
-    uint8_t frames_per_row = bitmap_width / frame_width;
+  uint16_t bitmap_bytes_per_row = (bitmap_width + 7) / 8;
 
-    // Cantidad de filas de sprites
-    uint8_t rows = bitmap_height / frame_height;
-
-    // Total de sprites
-    uint16_t total_frames = frames_per_row * rows;
-
-    for (uint16_t frame = 0; frame < total_frames; frame++)
+  for (uint8_t j = 0; j < frame_height; j++)
+  {
+    for (uint8_t i = 0; i < frame_width; i++)
     {
-        uint8_t sprite_x = (frame % frames_per_row) * frame_width;
-        uint8_t sprite_y = (frame / frames_per_row) * frame_height;
+      // Coordenadas dentro del bitmap completo
+      uint16_t bitmap_x = sprite_x + i;
+      uint16_t bitmap_y = sprite_y + j;
 
-        oled_clear_area(x, y, frame_width, frame_height);
+      // Byte donde está ese píxel
+      uint16_t byte_index =
+          bitmap_y * bitmap_bytes_per_row +
+          (bitmap_x / 8);
 
-        oled_draw_bitmap_frame(
-            x,
-            y,
-            sprite_x,
-            sprite_y,
-            bitmap,
-            bitmap_width,
-            frame_width,
-            frame_height,
-            color);
+      // Bit correspondiente
+      uint8_t bit_mask = 0x80 >> (bitmap_x % 8);
 
-        oled_update();
+      uint8_t current_byte = pgm_read_byte(&bitmap[byte_index]);
 
-        _delay_ms(delay_ms);
+      if (current_byte & bit_mask)
+      {
+        oled_draw_pixel(x + i, y + j, color);
+      }
     }
+  }
 }
 
-void oled_draw_bitmap_frame(uint8_t x,uint8_t y,uint8_t sprite_x,uint8_t sprite_y,const uint8_t *bitmap,uint8_t bitmap_width,uint8_t frame_width,uint8_t frame_height, uint8_t color)
+void oled_sprite_animation(
+    uint8_t x,
+    uint8_t y,
+    const uint8_t *bitmap,
+    uint8_t bitmap_width,
+    uint8_t bitmap_height,
+    uint8_t frame_width,
+    uint8_t frame_height,
+    uint8_t color,
+    uint16_t delay_ms)
 {
-    uint16_t bitmap_bytes_per_row = (bitmap_width + 7) / 8;
+  // Cantidad de sprites por fila
+  uint8_t frames_per_row = bitmap_width / frame_width;
 
-    for (uint8_t j = 0; j < frame_height; j++)
-    {
-        for (uint8_t i = 0; i < frame_width; i++)
-        {
-            // Coordenadas dentro del bitmap completo
-            uint16_t bitmap_x = sprite_x + i;
-            uint16_t bitmap_y = sprite_y + j;
+  // Cantidad de filas de sprites
+  uint8_t rows = bitmap_height / frame_height;
 
-            // Byte donde está ese píxel
-            uint16_t byte_index =
-                bitmap_y * bitmap_bytes_per_row +
-                (bitmap_x / 8);
+  // Total de sprites
+  uint16_t total_frames = frames_per_row * rows;
 
-            // Bit correspondiente
-            uint8_t bit_mask = 0x80 >> (bitmap_x % 8);
+  for (uint16_t frame = 0; frame < total_frames; frame++)
+  {
+    uint8_t sprite_x = (frame % frames_per_row) * frame_width;
+    uint8_t sprite_y = (frame / frames_per_row) * frame_height;
 
-            uint8_t current_byte = pgm_read_byte(&bitmap[byte_index]);
+    oled_clear_area(x, y, frame_width, frame_height);
 
-            if (current_byte & bit_mask)
-            {
-                oled_draw_pixel(x + i, y + j, color);
-            }
-        }
-    }
+    oled_draw_sprite_frame(
+        x,
+        y,
+        sprite_x,
+        sprite_y,
+        bitmap,
+        bitmap_width,
+        frame_width,
+        frame_height,
+        color);
+
+    oled_update();
+
+    _delay_ms(delay_ms);
+  }
 }
 
 //=====================================================
@@ -561,55 +957,59 @@ void oled_draw_bitmap_frame(uint8_t x,uint8_t y,uint8_t sprite_x,uint8_t sprite_
 
 void oled_set_contrast(uint8_t contrast)
 {
-    oled_send_command(0x81); // Comando para establecer el contraste
-    oled_send_command(contrast);
+  oled_send_command(0x81); // Comando para establecer el contraste
+  oled_send_command(contrast);
 }
 
 void oled_invert_display(void)
 {
-    static bool invert = true;
+  static bool invert = true;
 
-    if (invert) {
-        oled_send_command(0xA7);
-    } else {
-        oled_send_command(0xA6);
-    }
+  if (invert)
+  {
+    oled_send_command(0xA7);
+  }
+  else
+  {
+    oled_send_command(0xA6);
+  }
 
-    invert = !invert;
+  invert = !invert;
 }
 
-void oled_scroll(uint8_t start_page,uint8_t end_page,uint8_t speed,scroll_direction direction,uint8_t vertical_offset)
+void oled_scroll(uint8_t start_page, uint8_t end_page, uint8_t speed, scroll_direction direction, uint8_t vertical_offset)
 {
-    // Si es scroll diagonal
-    if (direction == scroll_direction::VerticalRight ||
-        direction == scroll_direction::VerticalLeft)
-    {
-        oled_send_command(0xA3);
-        oled_send_command(0x00);      // Top Fixed Area
-        oled_send_command(HEIGHT);      // Scroll Area (64 líneas)
-    }
+  // Si es scroll diagonal
+  if (direction == VerticalRight ||
+      direction == VerticalLeft)
+  {
+    oled_send_command(0xA3);
+    oled_send_command(0x00);   // Top Fixed Area
+    oled_send_command(HEIGHT); // Scroll Area (64 líneas)
+  }
 
-    oled_send_command(static_cast<uint8_t>(direction));
+  oled_send_command(static_cast<uint8_t>(direction));
 
+  oled_send_command(0x00);
+  oled_send_command(start_page);
+  oled_send_command(speed);
+  oled_send_command(end_page);
+
+  if (direction == VerticalRight ||
+      direction == VerticalLeft)
+  {
+    oled_send_command(vertical_offset);
+  }
+  else
+  {
     oled_send_command(0x00);
-    oled_send_command(start_page);
-    oled_send_command(speed);
-    oled_send_command(end_page);
+    oled_send_command(0xFF);
+  }
 
-    if (direction == scroll_direction::VerticalRight ||
-        direction == scroll_direction::VerticalLeft)
-    {
-        oled_send_command(vertical_offset);
-    }
-    else
-    {
-        oled_send_command(0x00);
-        oled_send_command(0xFF);
-    }
-
-    oled_send_command(0x2F);
+  oled_send_command(0x2F);
 }
 
-void oled_scroll_stop(void){
-    oled_send_command(0x2E);
+void oled_scroll_stop(void)
+{
+  oled_send_command(0x2E);
 }

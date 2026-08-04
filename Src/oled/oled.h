@@ -24,34 +24,59 @@
  * las funciones de desplazamiento por hardware del controlador SSD1306.
  */
 
-#define SSD1306_ADDR    0x3C   ///< Dirección I2C del SSD1306.
-#define SSD1306_COMMAND 0x00   ///< Byte de control para comandos.
-#define SSD1306_DATA    0x40   ///< Byte de control para datos.
+enum oled_config : uint8_t
+{
+    SSD1306 = 0,
+    SH1106 = 1,
+    SSD1306_ADDR = 0x3C,    ///< Dirección I2C del SSD1306.
+    SSD1306_COMMAND = 0x00, ///< Byte de control para comandos.
+    SSD1306_DATA = 0x40     ///< Byte de control para datos.
+};
 
-#define WIDTH  128             ///< Ancho del display en píxeles.
-#define HEIGHT 64              ///< Alto del display en píxeles.
+/**
+ * @brief Cuadrantes para rectangulos.
+ */
+
+enum oled_quadrant : uint8_t
+{
+    OLED_QUADRANT_TOP_LEFT = 0x01,
+    OLED_QUADRANT_TOP_RIGHT = 0x02,
+    OLED_QUADRANT_BOTTOM_LEFT = 0x04,
+    OLED_QUADRANT_BOTTOM_RIGHT = 0x08
+};
+
+/**
+ * @brief Dimensiones del display Maximas.
+ */
+
+enum oled_dimensions : uint8_t
+{
+    OLED_MAX_WIDTH = 128,
+    OLED_MAX_HEIGHT = 64
+};
 
 /**
  * @brief Color de dibujo.
  */
+
 enum oled_color : uint8_t
 {
-    OLED_BLACK = 0,    ///< Apaga el píxel.
-    OLED_WHITE = 1     ///< Enciende el píxel.
+    OLED_BLACK = 0, ///< Apaga el píxel.
+    OLED_WHITE = 1  ///< Enciende el píxel.
 };
 
 /**
  * @brief Dirección del desplazamiento.
  */
-enum class scroll_direction : uint8_t
+enum scroll_direction : uint8_t
 {
-    Right         = 0x26,   ///< Scroll horizontal hacia la derecha.
-    Left          = 0x27,   ///< Scroll horizontal hacia la izquierda.
-    VerticalRight = 0x29,   ///< Scroll diagonal hacia la derecha.
-    VerticalLeft  = 0x2A,   ///< Scroll diagonal hacia la izquierda.
+    Right = 0x26,         ///< Scroll horizontal hacia la derecha.
+    Left = 0x27,          ///< Scroll horizontal hacia la izquierda.
+    VerticalRight = 0x29, ///< Scroll diagonal hacia la derecha.
+    VerticalLeft = 0x2A,  ///< Scroll diagonal hacia la izquierda.
 
-    Up            = 0,      ///< Scroll por software hacia arriba.
-    Down          = 1       ///< Scroll por software hacia abajo.
+    Up = 0,  ///< Scroll por software hacia arriba.
+    Down = 1 ///< Scroll por software hacia abajo.
 };
 
 /**
@@ -59,16 +84,31 @@ enum class scroll_direction : uint8_t
  */
 enum text_size : uint8_t
 {
-    TEXT_NORMAL = 1,     ///< Escala x1.
-    TEXT_BIG    = 2,     ///< Escala x2.
-    TEXT_MEGA   = 3,     ///< Escala x3.
-    TEXT_HYPER  = 4      ///< Escala x4.
+    TEXT_NORMAL = 1, ///< Escala x1.
+    TEXT_BIG = 2,    ///< Escala x2.
+    TEXT_MEGA = 3,   ///< Escala x3.
+    TEXT_HYPER = 4   ///< Escala x4.
+};
+
+enum oled_align_t : uint8_t
+{
+    OLED_ALIGN_TOP_LEFT,
+    OLED_ALIGN_TOP_CENTER,
+    OLED_ALIGN_TOP_RIGHT,
+
+    OLED_ALIGN_CENTER_LEFT,
+    OLED_ALIGN_CENTER,
+    OLED_ALIGN_CENTER_RIGHT,
+
+    OLED_ALIGN_BOTTOM_LEFT,
+    OLED_ALIGN_BOTTOM_CENTER,
+    OLED_ALIGN_BOTTOM_RIGHT
 };
 
 /**
  * @brief Inicializa el display OLED.
  */
-void oled_init(void);
+void oled_init(oled_config config, uint8_t width, uint8_t height);
 
 /**
  * @brief Envía el contenido del framebuffer al display.
@@ -107,16 +147,33 @@ void oled_draw_pixel(uint8_t x, uint8_t y, uint8_t color);
 /**
  * @brief Dibuja una línea.
  */
-void oled_draw_line(uint8_t x0, uint8_t y0,
-                    uint8_t x1, uint8_t y1,
+void oled_draw_line(uint8_t x0,
+                    uint8_t y0,
+                    uint8_t x1,
+                    uint8_t y1,
                     uint8_t color);
 
+void oled_draw_round_rect(
+    uint8_t x,
+    uint8_t y,
+    uint8_t width,
+    uint8_t height,
+    uint8_t radius,
+    uint8_t color);
 /**
  * @brief Dibuja un rectángulo.
  */
 void oled_draw_rectangle(uint8_t x0, uint8_t y0,
                          uint8_t width, uint8_t height,
                          uint8_t color);
+
+void oled_draw_round_rect_filled(
+    uint8_t x,
+    uint8_t y,
+    uint8_t width,
+    uint8_t height,
+    uint8_t radius,
+    uint8_t color);
 
 /**
  * @brief Dibuja un rectángulo relleno.
@@ -150,9 +207,12 @@ void oled_draw_triangle(uint8_t x0, uint8_t y0,
 /**
  * @brief Dibuja un triángulo relleno.
  */
-void oled_draw_triangle_filled(uint8_t x0, uint8_t y0,
-                               uint8_t x1, uint8_t y1,
-                               uint8_t x2, uint8_t y2,
+void oled_draw_triangle_filled(uint8_t x0,
+                               uint8_t y0,
+                               uint8_t x1,
+                               uint8_t y1,
+                               uint8_t x2,
+                               uint8_t y2,
                                uint8_t color);
 
 /**
@@ -175,6 +235,16 @@ void oled_draw_string(uint8_t x, uint8_t y,
                       text_size size);
 
 /**
+ * @brief Dibuja una cadena de texto alineada.
+ */
+void oled_draw_string_aligned(int8_t padding_x,
+                              int8_t padding_y,
+                              const char *str,
+                              uint8_t color,
+                              text_size scale,
+                              oled_align_t align);
+
+/**
  * @brief Dibuja un bitmap.
  */
 void oled_draw_bitmap(uint8_t x, uint8_t y,
@@ -192,7 +262,7 @@ void oled_draw_bitmap(uint8_t x, uint8_t y,
  * @param frame_width Ancho del frame.
  * @param frame_height Alto del frame.
  */
-void oled_draw_bitmap_frame(uint8_t x,
+void oled_draw_sprite_frame(uint8_t x,
                             uint8_t y,
                             uint8_t sprite_x,
                             uint8_t sprite_y,
