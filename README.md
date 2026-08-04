@@ -129,6 +129,7 @@ oled_draw_char(
   <img src="Demo/Text.png" width="500">
 </p>
 ---
+
 ## Draw Triangles Example
 
 ```cpp
@@ -151,6 +152,7 @@ oled_draw_char(
 </p>
 
 ---
+
 ## Sprite Example
 
 ```cpp
@@ -168,6 +170,7 @@ oled_draw_bitmap_frame(
 ```
 
 ---
+
 ## Sprite Anmiation Example
 
 ```cpp
@@ -187,6 +190,7 @@ oled_sprite_animation(
   <img src="Demo/Sprite Animation.gif" width="500">
 </p>
 ---
+
 ## Documentation
 
 The library is fully documented using Doxygen-style comments inside **oled.h**.
