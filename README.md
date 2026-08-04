@@ -56,7 +56,7 @@ Designed for AVR microcontrollers with simplicity, portability and readability i
 
 SSD1306
 
-128×64
+128×64 | 128x32
 
 I²C Interface
 
