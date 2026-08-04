@@ -8,6 +8,7 @@ Designed for AVR microcontrollers with simplicity, portability and readability i
 
 <p align="center">
   <img src="Demo/Scroll.gif" width="500">
+    <img src="Demo/Sprite Animation.gif" width="500">
 </p>
 
 ## Features
