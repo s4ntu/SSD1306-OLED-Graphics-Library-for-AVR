@@ -7,7 +7,7 @@ Designed for AVR microcontrollers with simplicity, portability and readability i
 ---
 
 <p align="center">
-  <img src="Demo/Scroll.gif" width="500">
+  <img src="Demo/Demo.gif" width="500">
 </p>
 
 ## Features
@@ -125,9 +125,6 @@ oled_draw_char(
           TEXT_MEGA
       );
 ```
-<p align="center">
-  <img src="Demo/Text.png" width="500">
-</p>
 ---
 
 ## Draw Triangles Example
@@ -147,10 +144,6 @@ oled_draw_char(
           OLED_WHITE
       );
 ```
-<p align="center">
-  <img src="Demo/Triangles.png" width="500">
-</p>
-
 ---
 
 ## Sprite Example
@@ -186,9 +179,6 @@ oled_sprite_animation(
     200
 );
 ```
-<p align="center">
-  <img src="Demo/Sprite Animation.gif" width="500">
-</p>
 ---
 
 ## Documentation
