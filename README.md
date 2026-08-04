@@ -6,6 +6,10 @@ Designed for AVR microcontrollers with simplicity, portability and readability i
 
 ---
 
+<p align="center">
+  <img src="docs/demo/scroll.gif" width="500">
+</p>
+
 ## Features
 
 ✔ SSD1306 initialization
