@@ -22,7 +22,11 @@ Designed for AVR microcontrollers with simplicity, portability and readability i
 
 ✔ Rectangles
 
+✔ Rounded rectangles
+
 ✔ Filled rectangles
+
+✔ Filled rounded rectangles
 
 ✔ Circles
 
