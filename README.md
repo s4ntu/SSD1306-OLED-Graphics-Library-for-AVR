@@ -8,7 +8,6 @@ Designed for AVR microcontrollers with simplicity, portability and readability i
 
 <p align="center">
   <img src="Demo/Scroll.gif" width="500">
-    <img src="Demo/Sprite Animation.gif" width="500">
 </p>
 
 ## Features
@@ -99,6 +98,59 @@ oled_scroll(
 
 ---
 
+## Text Example
+
+```cpp
+oled_draw_char(
+          0,
+          0,
+          'A',
+          OLED_WHITE,
+          TEXT_NORMAL
+      );
+
+      oled_draw_string(
+          0,
+          20,
+          "SSD1306 :)",
+          OLED_WHITE,
+          TEXT_BIG
+      );
+
+      oled_draw_string(
+          0,
+          44,
+          "Test OK",
+          OLED_WHITE,
+          TEXT_MEGA
+      );
+```
+<p align="center">
+  <img src="Demo/Text.png" width="500">
+</p>
+---
+## Draw Triangles Example
+
+```cpp
+      oled_draw_triangle(
+          20, 50,
+          60, 10,
+          100, 50,
+          OLED_WHITE
+      );
+
+      oled_draw_triangle_filled(
+          30, 55,
+          64, 20,
+          100, 55,
+          OLED_WHITE
+      );
+```
+<p align="center">
+  <img src="Demo/Triangles.png" width="500">
+</p>
+
+---
 ## Sprite Example
 
 ```cpp
@@ -116,7 +168,25 @@ oled_draw_bitmap_frame(
 ```
 
 ---
+## Sprite Anmiation Example
 
+```cpp
+oled_sprite_animation(
+    56,
+    24,
+    epd_bitmap_sprite,
+    32,
+    32,
+    16,
+    16,
+    OLED_WHITE,
+    200
+);
+```
+<p align="center">
+  <img src="Demo/Sprite Animation.gif" width="500">
+</p>
+---
 ## Documentation
 
 The library is fully documented using Doxygen-style comments inside **oled.h**.
