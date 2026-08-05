@@ -71,7 +71,7 @@ I²C Interface
 ```cpp
 i2c_init();
 
-oled_init();
+oled_init(SSD1306, 128, 64);
 
 oled_clear();
 
